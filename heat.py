@@ -2,9 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 q = 1.0
-n = 200
-# n2 = 100
-# n3 = 50
+n = 50
 tl = 0.0
 tr = 0.0
 l = 1.0
@@ -32,36 +30,28 @@ def prolong(vec):
 
 
 # iter stands for itereation times
-
-def jIter(aw, ap, ae, su, phi, itr):
-    n = np.size(aw)
-    phi0 = phi
-    for _ in range(itr):
-        phi[0] = (su[0] + ae[0] * phi0[1]) / ap[0]
-        for i in range(n-1):
-            phi[i] = (su[i] + aw[i] * phi0[i-1] + ae[i] * phi0[i+1]) / ap[i]
-
-        phi[n-1] = (su[n-1] + aw[n-1] * phi0[n-2]) / ap[n-1]
+def jIter(A, b, x0, iter):
+    n = len(b)
+    x = x0.copy()
+    for _ in range(iter):
+        x_new = np.zeros_like(x)
         for i in range(n):
-            phi0[i] = phi[i]
-    
-    return phi
+            sum_j = np.dot(A[i, :], x).item() - A[i, i] * x[i]
+            x_new[i] = (b[i] - sum_j) / A[i, i]
+        x = x_new
+    return x
 
-
-def gsIter(aw, ap, ae, su, phi, itr):
-    n = np.size(aw)
-    phi0 = phi
+def gsIter(A, b, u0, itr):
+    n = len(A)
+    u = u0.copy()
     for i in range(itr):
-        phi[0] = (ae[0]*phi0[1]+su[0])/ap[0]
-        for i in range(n-1):
-            phi[i] = (aw[i]*phi[i-1]+ae[i]*phi0[i+1]+su[i])/ap[i]
-
-        phi[n-1] = (aw[n-1]*phi[n-2]+su[n-1])/ap[n-1]
+        u_new = u.copy()
         for i in range(n):
-            phi0[i] = phi[i]
-
-    return phi
-
+            s1 = np.dot(A[i, :i], u_new[:i]).item()
+            s2 = np.dot(A[i, i + 1:], u[i + 1:]).item()
+            u_new[i] = (b[i] - s1 - s2) / A[i, i]
+        u = u_new
+    return u
 
 def residual(su, aw, ap, ae, phi):
     n = np.size(su)
@@ -94,7 +84,7 @@ def getMatrix(num):
     ap[0] = aw[0]+ae[0] + 2*num/l
     ap[num-1] = aw[num-1]+ae[num-1] + 2*num/l
     return aw, ap, ae, su
-
+    
 
 def sol(aw, ap, ae, su):
     n = np.size(aw)
@@ -110,54 +100,45 @@ def sol(aw, ap, ae, su):
     phi[n-1] = q[n-1]
     for i in range(n-1, 0, -1):
         phi[i-1] = p[i-1]*phi[i]+q[i-1]
-
     return phi
-
 
 if __name__ == '__main__':
     # prepare matrix
     aw, ap, ae, su = getMatrix(n)
     aw2, ap2, ae2, su2 = getMatrix(int(n/2))
-    aw3, ap3, ae3, su3 = getMatrix(int(n/4))
+    A = np.diag(ap) + np.diag(-ae[:-1], 1) + np.diag(-aw[1:], -1)
+    # A2 = np.diag(ap2) + np.diag(-ae2[:-1], 1) + np.diag(-aw2[1:], -1)
     phi = np.zeros(n)
-    # phi = gsIter(aw, ap, ae, su, phi, 20000)
-    phi = jIter(aw, ap, ae, su, phi, 3)
 
-    res = 1
+    # Forward - smoothing
+    # phi = gsIter(A, su, phi, 3)
+    phi = jIter(A, su, phi, 3)
+
+    res = 1e6
     cnt = 0
     res_list = []
 
-    res0 = 1
-    while(res0 > 1e-8):
+    L2b = np.linalg.norm(su, 2)
+
+    while(res > 1e-8*L2b):
         # finest mesh
-        phi = gsIter(aw, ap, ae, su, phi, 2)
-        # phi = jIter(aw, ap, ae, su, phi, 2)
+        phi = gsIter(A, su, phi, 1)
+        # phi = jIter(A, su, phi, 2)
         r = residual(su, aw, ap, ae, phi)
-        res = np.mean(r)
+        res = np.linalg.norm(r, 2)
         res_list.append(res)
         cnt += 1
-        print("iter: ", cnt, " res:", res0)
+        print("iter: ", cnt, " res:", res)
         # ------------- restriction -----------------
         r2 = restrict(r)
-        # e2 = gsIter(aw2, ap2, ae2, r2, np.zeros(int(n/2)), 10)
-        # # e2 = jIter(aw2, ap2, ae2, r2, np.zeros(int(n/2)), 10)
-        # r4 = residual(r2, aw2, ap2, ae2, e2)
-        # rr = restrict(r4)
-        #e4 = gsIter(aw3,ap3,ae3,rr,np.zeros(int(n/4)),10)
-        # e4 = sol(aw3, ap3, ae3, rr)
-        e4 = sol(aw3, ap3, ae3, r2)
+        e2 = sol(aw2, ap2, ae2, r2)
+        # e20 = np.zeros(int(n/2))
+        # e2 = gsIter(A2, r2, e20, 4)
         # ------------ prolongation -----------------
-        eff = prolong(e4)
-        e2 = e2+eff
-        e2 = gsIter(aw2, ap2, ae2, r2, e2, 2)
-        # e2 = jIter(aw2, ap2, ae2, r2, e2, 2)
         ef = prolong(e2)
         phi = phi + ef
-        # -----
-        norm_res = np.sqrt(np.sum(res))
-        norm_su = np.sqrt(np.sum(su))
-        if norm_su > 0:
-            res0 = norm_res / norm_su
+        # Backward - smoothing
+        phi = jIter(A, su, phi, 1)
 
     phix = np.zeros(n-2)
     phixx = np.zeros(n-4)
@@ -168,7 +149,7 @@ if __name__ == '__main__':
         phixx[i] = (phix[i+2]-phix[i])/(2*l/n)
 
     plt.subplot(1,3,1)
-    # plt.plot(res_list)
+    plt.plot(res_list)
     plt.yscale('log')
     plt.title("mean residual")
 
@@ -182,4 +163,3 @@ if __name__ == '__main__':
     plt.ylim([-0.9,-1.1])
 
     plt.show()
-

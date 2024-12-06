@@ -32,22 +32,25 @@ def prolong(vec):
 
 
 # iter stands for itereation times
-def jIter(A, b, u0, itr):
-    n = len(A)
-    u = u0.copy()
-    for j in range(itr):
-        u_new = np.array([(b[i] - np.dot(A[i, :i], u[:i]) - np.dot(A[i, i + 1:], u[i + 1:])) / A[i, i] for i in range(n)])
-        u = u_new
-    return u
+def jIter(A, b, x0, iter):
+    n = len(b)
+    x = x0.copy()
+    for _ in range(iter):
+        x_new = np.zeros_like(x)
+        for i in range(n):
+            sum_j = np.dot(A[i, :], x).item() - A[i, i] * x[i]
+            x_new[i] = (b[i] - sum_j) / A[i, i]
+        x = x_new
+    return x
 
 def gsIter(A, b, u0, itr):
     n = len(A)
     u = u0.copy()
-    for j in range(itr):
+    for i in range(itr):
         u_new = u.copy()
         for i in range(n):
-            s1 = np.dot(A[i, :i], u_new[:i])
-            s2 = np.dot(A[i, i + 1:], u[i + 1:])
+            s1 = np.dot(A[i, :i], u_new[:i]).item()
+            s2 = np.dot(A[i, i + 1:], u[i + 1:]).item()
             u_new[i] = (b[i] - s1 - s2) / A[i, i]
         u = u_new
     return u
@@ -111,6 +114,7 @@ if __name__ == '__main__':
     aw2, ap2, ae2, su2 = getMatrix(int(n/2))
     A = np.diag(ap) + np.diag(-ae[:-1], 1) + np.diag(-aw[1:], -1)
     phi = np.zeros(n)
+    # phi = jIter(aw, ap, ae, su, phi, 3000)
 
     res = 1
     cnt = 0
@@ -119,8 +123,10 @@ if __name__ == '__main__':
     res0 = 1
     while(res0 > 1e-8):
         # finest mesh
-        phi = gsIter(A, su, phi, 2)
-        # phi = jIter(A, su, phi, 2)
+        # phi = gsIter(A, su, phi, 2)
+        # phi = jIter(aw, ap, ae, su, phi, 2)
+        phi = jIter(A, su, phi, 2)
+
         r = residual(su, aw, ap, ae, phi)
         res = np.mean(r)
         res_list.append(res0)

@@ -1,12 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-q = 1.0
-n = 200
-n2 = 100
-n3 = 50
-tl = 0.0
-tr = 0.0
+k = 5
+q = 20e3
+a = 0.01
+n = 20
+n2 = 10
+n3 = 5
+tl = 100
+tr = 500
 l = 1.0
 
 
@@ -63,19 +65,19 @@ def getMatrix(num):
     ae = np.zeros(num)
     su = np.zeros(num)
     for i in range(1, num-1):
-        aw[i] = num/l
+        aw[i] = k*a*num/l
         ae[i] = aw[i]
-        su[i] = q*l/num
+        su[i] = q*a*l/num
         ap[i] = aw[i]+ae[i]
 
     aw[0] = 0
     ae[num-1] = 0
-    ae[0] = num/l
-    aw[num-1] = num/l
-    su[0] = q*l/n+2*num/l*tl
-    su[num-1] = q*l/n+2*num/l*tr
-    ap[0] = aw[0]+ae[0] + 2*num/l
-    ap[num-1] = aw[num-1]+ae[num-1] + 2*num/l
+    ae[0] = k*a*num/l
+    aw[num-1] = k*a*num/l
+    su[0] = q*a*l/n+2*k*a*num/l*tl
+    su[num-1] = q*a*l/n+2*k*a*num/l*tr
+    ap[0] = aw[0]+ae[0] + 2*k*a*num/l
+    ap[num-1] = aw[num-1]+ae[num-1] + 2*k*a*num/l
     return aw, ap, ae, su
 
 
@@ -102,13 +104,13 @@ if __name__ == '__main__':
     aw, ap, ae, su = getMatrix(n)
     aw2, ap2, ae2, su2 = getMatrix(int(n/2))
     aw3, ap3, ae3, su3 = getMatrix(int(n/4))
-    phi = np.zeros(n)
+    phi = np.ones(n)*150
     phi = gsIter(aw, ap, ae, su, phi, 3)
 
     res = 1
     cnt = 0
     res_list = []
-    while(res > 1e-8):
+    while(res > 1e-6):
         # finest mesh
         phi = gsIter(aw, ap, ae, su, phi, 2)
         r = residual(su, aw, ap, ae, phi)
@@ -130,27 +132,7 @@ if __name__ == '__main__':
         ef = prolong(e2)
         phi = phi + ef
 
-    phix = np.zeros(n-2)
-    phixx = np.zeros(n-4)
-    for i in range(n-2):
-        phix[i] = (phi[i+2]-phi[i])/(2*l/n)
-    
-    for i in range(n-4):
-        phixx[i] = (phix[i+2]-phix[i])/(2*l/n)
-
-    plt.subplot(1,3,1)
-    plt.plot(res_list)
     plt.yscale('log')
-    plt.title("mean residual")
-
-    plt.subplot(1,3,2)
-    plt.plot(phi)
-    plt.title("solution")
-
-    plt.subplot(1,3,3)
-    plt.plot(phixx)
-    plt.title("uxx")
-    plt.ylim([-0.9,-1.1])
-
+    plt.figure(1)
+    plt.plot(res_list)
     plt.show()
-
