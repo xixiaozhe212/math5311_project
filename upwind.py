@@ -1,12 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-q = 1.0
 n = 200
-# n = 100
-n = 50
 tl = 0.0
-tr = 0.0
+tr = 1.0
 l = 1.0
 
 
@@ -43,20 +40,6 @@ def jIter(A, b, x0, iter):
         x = x_new
     return x
 
-def gsIter(A, b, u0, itr):
-    n = len(A)
-    u = u0.copy()
-    for i in range(itr):
-        u_new = u.copy()
-        for i in range(n):
-            s1 = np.dot(A[i, :i], u_new[:i]).item()
-            s2 = np.dot(A[i, i + 1:], u[i + 1:]).item()
-            u_new[i] = (b[i] - s1 - s2) / A[i, i]
-        u = u_new
-    return u
-
-
-
 def residual(su, aw, ap, ae, phi):
     n = np.size(su)
     res = np.zeros(n)
@@ -74,19 +57,20 @@ def getMatrix(num):
     ae = np.zeros(num)
     su = np.zeros(num)
     for i in range(1, num-1):
-        aw[i] = num/l
-        ae[i] = aw[i]
-        su[i] = q*l/num
+        aw[i] = 1
+        ae[i] = 0
+        su[i] = l/num
         ap[i] = aw[i]+ae[i]
 
     aw[0] = 0
     ae[num-1] = 0
-    ae[0] = num/l
-    aw[num-1] = num/l
-    su[0] = q*l/n+2*num/l*tl
-    su[num-1] = q*l/n+2*num/l*tr
-    ap[0] = aw[0]+ae[0] + 2*num/l
-    ap[num-1] = aw[num-1]+ae[num-1] + 2*num/l
+    ae[0] = 0
+    aw[num-1] = 1
+    su[0] = l/n+2*tl
+    # su[num-1] = l/n - 2*tr
+    su[num-1] = l/n
+    ap[0] = 2
+    ap[num-1] = 1
     return aw, ap, ae, su
     
 
@@ -104,9 +88,7 @@ def sol(aw, ap, ae, su):
     phi[n-1] = q[n-1]
     for i in range(n-1, 0, -1):
         phi[i-1] = p[i-1]*phi[i]+q[i-1]
-
     return phi
-
 
 if __name__ == '__main__':
     # prepare matrix
@@ -114,35 +96,34 @@ if __name__ == '__main__':
     aw2, ap2, ae2, su2 = getMatrix(int(n/2))
     A = np.diag(ap) + np.diag(-ae[:-1], 1) + np.diag(-aw[1:], -1)
     phi = np.zeros(n)
-    # phi = jIter(aw, ap, ae, su, phi, 3000)
 
-    res = 1
+    # Forward - smoothing
+    phi = jIter(A, su, phi, 3)
+    
+    res = 1e6
     cnt = 0
     res_list = []
 
-    res0 = 1
-    while(res0 > 1e-8):
-        # finest mesh
-        # phi = gsIter(A, su, phi, 2)
-        # phi = jIter(aw, ap, ae, su, phi, 2)
-        phi = jIter(A, su, phi, 2)
+    L2b = np.linalg.norm(su, 2)
 
+    while(res > 1e-8*L2b):
+        # finest mesh
+        phi = jIter(A, su, phi, 2)
         r = residual(su, aw, ap, ae, phi)
-        res = np.mean(r)
-        res_list.append(res0)
+        res = np.linalg.norm(r, 2)
+        res_list.append(res)
         cnt += 1
-        print("iter: ", cnt, " res:", res0)
+        print("iter: ", cnt, " res:", res)
         # ------------- restriction -----------------
         r2 = restrict(r)
         e2 = sol(aw2, ap2, ae2, r2)
+        # e20 = np.zeros(int(n/2))
+        # e2 = gsIter(A2, r2, e20, 4)
         # ------------ prolongation -----------------
         ef = prolong(e2)
         phi = phi + ef
-        # -----
-        norm_res = np.sqrt(np.sum(res))
-        norm_su = np.sqrt(np.sum(su))
-        if norm_su > 0:
-            res0 = norm_res / norm_su
+        # Backward - smoothing
+        phi = jIter(A, su, phi, 1)
 
     phix = np.zeros(n-2)
     phixx = np.zeros(n-4)
@@ -162,9 +143,8 @@ if __name__ == '__main__':
     plt.title("solution")
 
     plt.subplot(1,3,3)
-    plt.plot(phixx)
-    plt.title("uxx")
-    plt.ylim([-0.9,-1.1])
+    plt.plot(phix)
+    plt.title("ux")
+    plt.ylim([0.9,1.1])
 
     plt.show()
-

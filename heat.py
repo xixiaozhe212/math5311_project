@@ -122,8 +122,8 @@ if __name__ == '__main__':
 
     while(res > 1e-8*L2b):
         # finest mesh
-        phi = gsIter(A, su, phi, 1)
-        # phi = jIter(A, su, phi, 2)
+        # phi = gsIter(A, su, phi, 1)
+        phi = jIter(A, su, phi, 2)
         r = residual(su, aw, ap, ae, phi)
         res = np.linalg.norm(r, 2)
         res_list.append(res)
